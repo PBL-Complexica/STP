@@ -14,9 +14,11 @@ migrate = Migrate(app, db)
 users = {}
 user_id_counter = 1  # Initialize the user ID counter
 
+
 @app.route('/', methods=["GET", "POST"])
 def hello_world():
     return "Welcome to STP!", 200
+
 
 # Endpoint for user signup
 @app.route('/signup', methods=['POST'])
@@ -52,6 +54,7 @@ def signup():
 
     return jsonify({'message': 'User registered successfully', 'user_id': user_id}), 201
 
+
 # Endpoint for user login
 @app.route('/login', methods=['POST'])
 def login():
@@ -68,7 +71,6 @@ def login():
     if phone_number not in users:
         return jsonify({'message': 'Phone number is not registered'}), 404
 
-
     # Hash the password securely (you should use a proper password hashing library)
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
@@ -77,6 +79,7 @@ def login():
         return jsonify({'message': 'Incorrect password'}), 401
 
     return jsonify({'message': 'Logged in successfully', 'user_id': users[phone_number]['user_id']}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
