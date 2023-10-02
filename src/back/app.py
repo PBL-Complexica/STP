@@ -2,22 +2,17 @@ from flask import Flask, request, jsonify
 import hashlib
 import requests
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migratex
-import jwt
-from user import *
-# import OTP.OTPGeneration as OTP
-# from flask-mail import Mail, Message
-# import PyJWT.jwt as jwt
+from flask_migrate import Migrate
 
 app = Flask(__name__)
 
-#db = SQLAlchemy(app)
-#migrate = Migrate(app, db)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
-user = User()
-user_phone = UserPhone()
-user_email = UserEmail()
-user_device = UserDevice()
+# This is just a simple in-memory database for demonstration purposes.
+# In a real application, you would use a proper database.
+users = {}
+user_id_counter = 1  # Initialize the user ID counter
 
 
 @app.route('/', methods=["GET", "POST"])
@@ -26,46 +21,36 @@ def hello_world():
 
 
 # Endpoint for user signup
-@app.route('/signup', methods=['POST', 'GET'])
+@app.route('/signup', methods=['POST'])
 def signup():
-    if request.method == 'POST':
-        data = request.get_json()
+    data = request.get_json()
 
-        phone_number = data['phone_number']
-        password = data['password']
+    # Check if phone number and password are provided
+    if 'phone_number' not in data or 'password' not in data:
+        return jsonify({'message': 'Phone number and password are required'}), 400
 
+    phone_number = data['phone_number']
+    password = data['password']
 
-        # TODO: Get the user data from database
+    # Check if the phone number is already registered
+    if phone_number in users:
+        return jsonify({'message': 'Phone number is already registered'}), 409
 
+    global user_id_counter  # Access the global user ID counter
+    user_id = user_id_counter  # Assign the current user ID
+    user_id_counter += 1  # Increment the user ID counter for the next user
 
-        # Check if the phone number is already registered
-        if phone_number in user_phone.phone_number:
-            return jsonify({'message': 'Phone number is already registered'}), 409
+    # salted_password = user_id + password
+    # # Hash the password securely (you should use a proper password hashing library)
+    # hashed_password = hashlib.sha256(salted_password.encode()).hexdigest()
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
-
-        # salted_password = user_id + password
-        # # Hash the password securely (you should use a proper password hashing library)
-        # hashed_password = hashlib.sha256(salted_password.encode()).hexdigest()
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
-
-        # Store the user data in the database
-        users[phone_number] = {
-            'user_id': user_id,
-            'password': hashed_password,
-            'phone_number': phone_number
-        }
-
-    elif request.method == 'GET':
-        data = request.args
-        phone_number = data['phone_number']
-        password = data['password']
-
-        # Check if the phone number is already registered
-        if phone_number in users:
-            return jsonify({'message': 'Phone number is already registered'}), 409
-
-        global user_id_counter
-
+    # Store the user data in the database
+    users[phone_number] = {
+        'user_id': user_id,
+        'password': hashed_password,
+        'phone_number': phone_number
+    }
 
     return jsonify({'message': 'User registered successfully', 'user_id': user_id}), 201
 
@@ -74,6 +59,10 @@ def signup():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+
+    # Check if phone number and password are provided
+    if 'phone_number' not in data or 'password' not in data:
+        return jsonify({'message': 'Phone number and password are required'}), 400
 
     phone_number = data['phone_number']
     password = data['password']
