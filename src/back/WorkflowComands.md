@@ -1,4 +1,4 @@
-first step when working on project is to activate the virtual environment if dont have one
+First step when working on project is to activate the virtual environment if dont have one
 ```
 python -m venv <venv>
 ```
