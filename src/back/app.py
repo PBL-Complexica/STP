@@ -1,5 +1,7 @@
 import hashlib
 import requests
+import os
+from dotenv import load_dotenv
 
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -18,8 +20,15 @@ from user import *
 
 app = Flask(__name__)
 
+# Load environment variables
+load_dotenv()
+
 #db = SQLAlchemy(app)
 #migrate = Migrate(app, db)
+
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY")
+jwt = JWTManager(app)
 
 user = User()
 
