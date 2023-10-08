@@ -2,6 +2,7 @@ import hashlib
 import requests
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -9,6 +10,7 @@ from flask_migrate import Migrate
 
 import jwt
 from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_refresh_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
@@ -28,6 +30,8 @@ load_dotenv()
 
 # Setup the Flask-JWT-Extended extension
 app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 jwt = JWTManager(app)
 
 user = User()
@@ -100,9 +104,18 @@ def login():
         return jsonify({'message': 'Incorrect password'}), 401
 
     access_token = create_access_token(identity=phone_number)
-    return jsonify(access_token=access_token)
+    refresh_token = create_refresh_token(identity=phone_number)
+    return jsonify(access_token=access_token, refresh_token=refresh_token)
     # return jsonify({'message': 'Logged in successfully', 'user_id': users[phone_number]['user_id']}), 200
 
+# We are using the `refresh=True` options in jwt_required to only allow
+# refresh tokens to access this route.
+@app.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    identity = get_jwt_identity()
+    access_token = create_access_token(identity=identity)
+    return jsonify(access_token=access_token), 200
 
 # Protect a route with jwt_required, which will kick out requests
 # without a valid JWT present.
@@ -154,7 +167,7 @@ def payment_information():
 
 @app.route('/payment_manager', methods=['GET','POST'])
 @jwt_required()
-def payment_information():
+def payment_manager():
     if request.method == 'GET':
         current_user = get_jwt_identity()
         return jsonify({'message': 'Payment manager', 'user_id': current_user}), 200
