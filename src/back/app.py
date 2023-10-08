@@ -113,6 +113,44 @@ def protected():
     current_user = get_jwt_identity()
     return jsonify(logged_in_as=current_user), 200
 
+@app.route('/user_information', methods=['GET, POST'])
+@jwt_required()
+def user_information():
+    if request.method == 'GET':
+        current_user = get_jwt_identity()
+        return jsonify({'message': 'User information', 'user_id': current_user}), 200
+    elif request.method == 'POST':
+        # TODO: [Update new data in database]
+        pass
+
+@app.route('/subscription_manager', methods=['GET', 'POST'])
+@jwt_required()
+def subscription_manager():
+    if request.method == 'GET':
+        current_user = get_jwt_identity()
+        return jsonify({'message': 'Subscription manager', 'user_id': current_user}), 200
+    elif request.method == 'POST':
+        # TODO: [Update new data in database]
+        # verify user if student or not
+        pass
+
+@app.route('/device_manager', methods=['GET', 'POST'])
+@jwt_required()
+def device_manager():
+    if request.method == 'GET':
+        current_user = get_jwt_identity()
+        return jsonify({'message': 'Device manager', 'user_id': current_user}), 200
+    elif request.method == 'POST':
+        pass
+
+@app.route('/payment_information', methods=['GET','POST'])
+@jwt_required()
+def payment_information():
+    if request.method == 'GET':
+        current_user = get_jwt_identity()
+        return jsonify({'message': 'Payment information', 'user_id': current_user}), 200
+    elif request.method == 'POST':
+        pass
 
 if __name__ == '__main__':
     app.run(debug=True)
