@@ -1,17 +1,30 @@
 # Venv Activation Instructions
 Note: do it from ./STP/src/back/
 
-## 1.1 Windows PowerShell:
+## 0. Create venv
 ```bash
-./app_venv/Source/activate.ps1
+python3 -m venv venv/
 ```
 
-## 1.2 Bash (linux):
+## 1.1. Windows PowerShell:
 ```bash
-source ./app_vevn/Source/activate
+./venv/Scripts/activate.ps1
+```
+Or
+```bash
+./venv/bin/activate.ps1
 ```
 
-## 2 Requirements:
+## 1.2. Bash (linux):
+```bash
+source ./venv/Scripts/activate
+```
+Or
+```bash
+source ./venv/bin/activate
+```
+
+## 2. Requirements:
 ```bash
 pip install -r requirements.txt
 ```

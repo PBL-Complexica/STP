@@ -152,5 +152,14 @@ def payment_information():
     elif request.method == 'POST':
         pass
 
+@app.route('/payment_manager', methods=['GET','POST'])
+@jwt_required()
+def payment_information():
+    if request.method == 'GET':
+        current_user = get_jwt_identity()
+        return jsonify({'message': 'Payment manager', 'user_id': current_user}), 200
+    elif request.method == 'POST':
+        pass
+
 if __name__ == '__main__':
     app.run(debug=True)
