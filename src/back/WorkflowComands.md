@@ -39,7 +39,7 @@ To stop db
 sudo systemctl stop postgresql.service
 ```
 
-To ckeck the status
+To check the status
 ```bash
 systemctl status postgresql.service
 ```
