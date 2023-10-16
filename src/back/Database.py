@@ -1,3 +1,5 @@
+from flask_migrate import upgrade
+import psycopg2
 from datetime import datetime
 from db_model import app
 from dotenv import dotenv_values
@@ -16,18 +18,6 @@ class DatabaseMeta(type):
 
 class Database(metaclass=DatabaseMeta):
     def __init__(self):
-        # Check if psycopg2 is installed
-        try:
-            import psycopg2
-        except ImportError:
-            raise ImportError("Please install psycopg2: 'pip install psycopg2'")
-
-        # Check if flask_migrate is installed
-        try:
-            from flask_migrate import upgrade
-        except ImportError:
-            raise ImportError("Please install flask_migrate: 'pip install flask_migrate'")
-
         with app.app_context():
             upgrade()
 
