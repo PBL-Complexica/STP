@@ -28,3 +28,4 @@ After installing new packages, run the following command to update the requireme
 ```
 pip freeze > requirements.txt
 ```
+
