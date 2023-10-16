@@ -55,10 +55,12 @@ def signup():
         last_name = data['last_name']
         phone_number = data['phone_number']
         password = data['password']
-        email_address = data['email']
-        phone_number = data['phone_number']
+        email_address = data['email_address']
+        device_name = data['device_name']
+        device_sn = data['device_sn']
+        birth_date = data['birth_date']
 
-        response = db.register(phone_number=phone_number, password=password, email_address=email_address, first_name=first_name, last_name=last_name)
+        response = db.register(phone_number=phone_number, password=password, email_address=email_address, first_name=first_name, last_name=last_name, device_name=device_name, device_sn=device_sn, birth_date=birth_date)
   
 
         return jsonify(response), 201
@@ -74,28 +76,14 @@ def login():
     phone_number = data['phone_number']
     password = data['password']
 
-    # TODO: [Get the user data from database]
-    # --- Just for testing, we will pass user data directly
-    user.phone_number = phone_number
-
-    # Check if the phone number is registered
-    if phone_number not in user.phone_number:
-        return jsonify({'message': 'Phone number is not registered'}), 404
-
-    # Hash the password securely (you should use a proper password hashing library)
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
-
-    # --- Just for testing, we will pass user data directly
-    user.password_hash = hashed_password
-
-    # Check if the provided password is correct
-    if hashed_password != user.password_hash:
-        return jsonify({'message': 'Incorrect password'}), 401
+    response = db.login(credential=phone_number, password=password)
 
     access_token = create_access_token(identity=phone_number)
     refresh_token = create_refresh_token(identity=phone_number)
-    return jsonify(access_token=access_token, refresh_token=refresh_token)
-    # return jsonify({'message': 'Logged in successfully', 'user_id': users[phone_number]['user_id']}), 200
+
+    if response['type'] == 'success':
+        return jsonify(access_token=access_token, refresh_token=refresh_token, response=response), 200
+    return jsonify(response), 401
 
 # We are using the `refresh=True` options in jwt_required to only allow
 # refresh tokens to access this route.
