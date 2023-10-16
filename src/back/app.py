@@ -16,11 +16,15 @@ from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 
 from user import *
+from Database import Database
+
 # import OTP.OTPGeneration as OTP
 # from flask-mail import Mail, Message
 # import PyJWT.jwt as jwt
 
 app = Flask(__name__)
+
+db = Database()
 
 # Load environment variables
 load_dotenv()
@@ -46,33 +50,18 @@ def hello_world():
 def signup():
     if request.method == 'POST':
         data = request.get_json()
-
+        
+        first_name = data['first_name']
+        last_name = data['last_name']
         phone_number = data['phone_number']
         password = data['password']
+        email_address = data['email']
+        phone_number = data['phone_number']
 
-                        # TODO: [Get the user data from database]
-        # --- Just for testing, we will pass user data directly
-        user.phone_number = phone_number
+        response = db.register(phone_number=phone_number, password=password, email_address=email_address, first_name=first_name, last_name=last_name)
+  
 
-        # Check if the phone number is already registered
-        if phone_number in user.phone_number:
-            return jsonify({'message': 'Phone number is already registered'}), 409
-
-        # # Hash the password securely (you should use a proper password hashing library)
-        # hashed_password = hashlib.sha256(salted_password.encode()).hexdigest()
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
-        
-        # --- Just for testing, we will pass user data directly
-        user.password_hash = hashed_password
-
-        # Store the user data in the local "database"
-        user.first_name = data['first_name']
-        user.last_name = data['last_name']
-        user.password_hash = hashed_password
-
-        # TODO: Store the user data in the database
-
-        return jsonify({'message': 'User registered successfully'}), 201
+        return jsonify(response), 201
 
 
 # Endpoint for user login
