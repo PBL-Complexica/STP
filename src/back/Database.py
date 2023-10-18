@@ -242,9 +242,9 @@ class Database(metaclass=DatabaseMeta):
             last_name: str,
             password: str,
             email_address: str,
+            phone_number: str,
             device_name: str = None,
             device_sn: str = None,
-            phone_number: str = None,
             birth_date: str = None
     ) -> dict:
         response = {"type": "", "data": {}}
@@ -287,7 +287,7 @@ class Database(metaclass=DatabaseMeta):
 
         # Insert device name and serial number
         device_ids = self.__get_user_id_device(device_sn)
-        if len(device_sn) != 11:
+        if len(device_sn) != 11 and device_sn is not None and device_name is not None:
             response["type"] = "error"
             response["data"]["device_error"] = 2
             response["data"]["device_message"] = "Invalid device serial number"
@@ -327,10 +327,15 @@ class Database(metaclass=DatabaseMeta):
                 user_id = self.__get_user_id(first_name, last_name, hashed)[0]
                 email_address_id = self.__get_email_id(email_address)[0]
                 phone_number_id = self.__get_phone_id(phone_number)[0]
-                device_id = self.__get_device_id(device_sn)[0]
                 self.__insert_user_email(user_id, email_address_id)
                 self.__insert_user_phone(user_id, phone_number_id)
-                self.__insert_user_device(user_id, device_id)
+
+                if device_sn is not None and device_name is not None:
+                    device_id = self.__get_device_id(device_sn)[0]
+                    self.__insert_user_device(user_id, device_id)
+                    response["data"]["device_id"] = device_id
+                else:
+                    response["data"]["device_id"] = None
 
                 response["type"] = "success"
                 response["data"]["message"] = "User registered successfully"
@@ -343,7 +348,6 @@ class Database(metaclass=DatabaseMeta):
                 response["data"]["phone_id"] = phone_number_id
                 response["data"]["device_name"] = device_name
                 response["data"]["device_sn"] = device_sn
-                response["data"]["device_id"] = device_id
                 response["data"]["birth_date"] = birth_date
 
         return response
