@@ -460,7 +460,7 @@ class Database(metaclass=DatabaseMeta):
                 "WHERE id = (SELECT email_id FROM user_email WHERE user_id = %s)",
                 (user[0],)
             )
-            email_address, email_address_id = self.cursor.fetchone()[0]
+            email_address, email_address_id = self.cursor.fetchone()
 
             # Get user's phone number based on user's id
             self.cursor.execute(
