@@ -1,3 +1,5 @@
+from flask_migrate import upgrade
+import psycopg2
 from datetime import datetime
 from db_model import app
 from dotenv import dotenv_values
@@ -16,18 +18,6 @@ class DatabaseMeta(type):
 
 class Database(metaclass=DatabaseMeta):
     def __init__(self):
-        # Check if psycopg2 is installed
-        try:
-            import psycopg2
-        except ImportError:
-            raise ImportError("Please install psycopg2: 'pip install psycopg2'")
-
-        # Check if flask_migrate is installed
-        try:
-            from flask_migrate import upgrade
-        except ImportError:
-            raise ImportError("Please install flask_migrate: 'pip install flask_migrate'")
-
         with app.app_context():
             upgrade()
 
@@ -46,6 +36,57 @@ class Database(metaclass=DatabaseMeta):
 
         # Populate database with initial data
         self.__populate()
+
+    @staticmethod
+    def __handle_response(
+            email_error=0,
+            phone_error=0,
+            password_error=0,
+            device_error=0,
+            payload: dict = None
+    ) -> dict:
+        response = {"type": "", "data": {}}
+        response["data"]["email_error"] = email_error
+        response["data"]["phone_error"] = phone_error
+        response["data"]["password_error"] = password_error
+        response["data"]["device_error"] = device_error
+
+        if any([email_error, phone_error, password_error, device_error]) != 0:
+            response["type"] = "error"
+
+        if email_error == 0:
+            response["data"]["email_message"] = "Email success"
+        elif email_error == 1:
+            response["data"]["email_message"] = "Email in use"
+        elif email_error == 2:
+            response["data"]["email_message"] = "Invalid email address"
+
+        if phone_error == 0:
+            response["data"]["phone_message"] = "Phone success"
+        elif phone_error == 1:
+            response["data"]["phone_message"] = "Phone in use"
+        elif phone_error == 2:
+            response["data"]["phone_message"] = "Invalid phone number"
+
+        if password_error == 0:
+            response["data"]["password_message"] = "Password success"
+        elif password_error == 1:
+            response["data"]["password_message"] = "Password incorrect"
+        elif password_error == 2:
+            response["data"]["password_message"] = "Invalid password"
+
+        if device_error == 0:
+            response["data"]["device_message"] = "Device success"
+        elif device_error == 1:
+            response["data"]["device_message"] = "Device in use"
+        elif device_error == 2:
+            response["data"]["device_message"] = "Invalid device serial number"
+
+        if payload is not None:
+            for key in payload.keys():
+                response["data"][key] = payload[key]
+
+        return response
 
     # Private methods
     # Insert new user
@@ -83,6 +124,9 @@ class Database(metaclass=DatabaseMeta):
 
     # Get phone number id
     def __get_phone_id(self, phone_number):
+        if (len(phone_number) == 8 or len(phone_number) == 9) and phone_number.isdigit():
+            phone_number = "+373" + phone_number[-8:]
+
         self.cursor.execute(
             "SELECT id FROM phone_number WHERE phone_number = %s",
             (phone_number,)
@@ -99,6 +143,9 @@ class Database(metaclass=DatabaseMeta):
 
     # Insert new phone number
     def __insert_phone(self, phone_number):
+        if (len(phone_number) == 8 or len(phone_number) == 9) and phone_number.isdigit():
+            phone_number = "+373" + phone_number[-8:]
+
         self.cursor.execute(
             "INSERT INTO phone_number (phone_number, created_at) "
             "VALUES (%s, %s) ON CONFLICT DO NOTHING",
@@ -228,7 +275,16 @@ class Database(metaclass=DatabaseMeta):
         self.db.commit()
 
     # Confirm user's email address
-    def confirm_email(self, email_address):
+    def confirm_email(self, email_address) -> dict:
+        response = {"type": "", "data": {}}
+
+        email_address_id = self.__get_email_id(email_address)
+        if len(email_address_id) == 0:
+            response["type"] = "error"
+            response["data"]["email_error"] = 1
+            response["data"]["email_message"] = "Email address not registered"
+            return response
+
         self.cursor.execute(
             "UPDATE user_email SET confirmed = TRUE "
             "WHERE email_id = (SELECT id FROM email_address WHERE email_address = %s) AND removed_at > %s",
@@ -236,14 +292,83 @@ class Database(metaclass=DatabaseMeta):
         )
         self.db.commit()
 
+        response["type"] = "success"
+        response["data"]["email_error"] = 0
+        response["data"]["email_message"] = "Email address confirmed successfully"
+
+        return response
+
     # Confirm user's phone number
-    def confirm_phone(self, phone_number):
+    def confirm_phone(self, phone_number) -> dict:
+        response = {"type": "", "data": {}}
+
+        if (len(phone_number) == 8 or len(phone_number) == 9) and phone_number.isdigit():
+            phone_number = "+373" + phone_number[-8:]
+
+        phone_id = self.__get_phone_id(phone_number)
+        if len(phone_id) == 0:
+            response["type"] = "error"
+            response["data"]["phone_error"] = 1
+            response["data"]["phone_message"] = "Phone number not registered"
+            return response
+
         self.cursor.execute(
             "UPDATE user_phone SET confirmed = TRUE "
             "WHERE phone_id = (SELECT id FROM phone_number WHERE phone_number = %s) AND removed_at > %s",
             (phone_number, datetime.now())
         )
         self.db.commit()
+
+        response["type"] = "success"
+        response["data"]["phone_error"] = 0
+        response["data"]["phone_message"] = "Phone number confirmed successfully"
+
+        return response
+
+    # Confirm user profile
+    def confirm_user(self, credential) -> dict:
+        response = {"type": "", "data": {}}
+        email_auth = False
+        phone_auth = False
+
+        # Check if credential is email
+        if re.match(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", credential):
+            email_auth = True
+
+        # Check if credential is phone number
+        elif ((len(credential) == 8 and (credential[0] == "6" or credential[0] == "7")) or (
+                len(credential) == 9 and (credential[0:2] == "06" or credential[0:2] == "07")) or (
+                      len(credential) == 12 and (credential[0:5] == "+3736" or credential[0:5] == "+3737"))) and (
+                credential[-7:].isdigit()):
+            phone_auth = True
+
+        # Send error if credential is not email or phone number
+        else:
+            response["type"] = "error"
+            response["data"]["email_error"] = 2
+            response["data"]["email_message"] = "Invalid email address"
+            response["data"]["phone_error"] = 2
+            response["data"]["phone_message"] = "Invalid phone number"
+            return response
+
+        if email_auth:
+            self.cursor.execute(
+                "UPDATE app_user SET confirmed = TRUE "
+                "WHERE id = (SELECT user_id FROM user_email WHERE email_id = (SELECT id FROM email_address WHERE email_address = %s))",
+                (credential,)
+            )
+
+        elif phone_auth:
+            self.cursor.execute(
+                "UPDATE app_user SET confirmed = TRUE "
+                "WHERE id = (SELECT user_id FROM user_phone WHERE phone_id = (SELECT id FROM phone_number WHERE phone_number = %s))",
+                (credential,)
+            )
+
+        response["type"] = "success"
+        response["data"]["message"] = "User confirmed successfully"
+
+        return response
 
     # Create new user and associate it with an email, phone number and device
     def register(
@@ -252,29 +377,28 @@ class Database(metaclass=DatabaseMeta):
             last_name: str,
             password: str,
             email_address: str,
+            phone_number: str,
             device_name: str = None,
             device_sn: str = None,
-            phone_number: str = None,
             birth_date: str = None
     ) -> dict:
-        response = {"type": "", "data": {}}
+        email_error = 0
+        phone_error = 0
+        password_error = 0
+        device_error = 0
+        payload = {}
 
         # Check email address is valid format
         email_address_ids = self.__get_user_id_email(email_address)
         if not re.match(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", email_address):
-            response["type"] = "error"
-            response["data"]["email_error"] = 2
-            response["data"]["email_message"] = "Invalid email address"
+            email_error = 2
         else:
             self.__insert_email(email_address)
 
             if email_address_ids:
-                response["type"] = "error"
-                response["data"]["email_error"] = 1
-                response["data"]["email_message"] = "Email already in use"
+                email_error = 1
             else:
-                response["data"]["email_error"] = 0
-                response["data"]["email_message"] = "Email available"
+                email_error = 0
 
         # Check phone number is valid format
         phone_number_ids = self.__get_user_id_phone(phone_number)
@@ -288,75 +412,66 @@ class Database(metaclass=DatabaseMeta):
             self.__insert_phone(phone_number)
 
             if phone_number_ids:
-                response["type"] = "error"
-                response["data"]["phone_error"] = 1
-                response["data"]["phone_message"] = "Phone number already in use"
+                phone_error = 1
             else:
-                response["data"]["phone_error"] = 0
-                response["data"]["phone_message"] = "Phone number available"
+                phone_error = 0
 
         # Insert device name and serial number
         device_ids = self.__get_user_id_device(device_sn)
-        if len(device_sn) != 11:
-            response["type"] = "error"
-            response["data"]["device_error"] = 2
-            response["data"]["device_message"] = "Invalid device serial number"
+        if len(device_sn) != 11 and device_sn is not None and device_name is not None:
+            device_error = 2
         else:
             self.__insert_device(device_sn, device_name)
 
             if device_ids:
-                response["type"] = "error"
-                response["data"]["device_error"] = 1
-                response["data"]["device_message"] = "Device already in use"
+                device_error = 1
             else:
-                response["data"]["device_error"] = 0
-                response["data"]["device_message"] = "Device available"
+                device_error = 0
 
         # Check first name is valid format
         if first_name == "" or not first_name.isalpha:
-            response["type"] = "error"
-            response["data"]["first_name_error"] = 2
-            response["data"]["first_name_message"] = "Invalid first name"
+            # TODO
+            ...
 
         # Check last name is valid format
         if last_name == "" or not last_name.isalpha:
-            response["type"] = "error"
-            response["data"]["last_name_error"] = 2
-            response["data"]["last_name_message"] = "Invalid last name"
+            # TODO
+            ...
 
         # Check password is valid format
         if len(password) < 8:
-            response["type"] = "error"
-            response["data"]["password_error"] = 2
-            response["data"]["password_message"] = "Invalid password, must be at least 8 characters long"
+            password_error = 2
         else:
             hashed = hashpw(password.encode('utf-8'), gensalt()).decode('utf-8')
 
-            if response["type"] != "error":
+            if password_error == 0:
                 self.__insert_user(first_name, last_name, hashed, birth_date)
                 user_id = self.__get_user_id(first_name, last_name, hashed)[0]
                 email_address_id = self.__get_email_id(email_address)[0]
                 phone_number_id = self.__get_phone_id(phone_number)[0]
-                device_id = self.__get_device_id(device_sn)[0]
                 self.__insert_user_email(user_id, email_address_id)
                 self.__insert_user_phone(user_id, phone_number_id)
-                self.__insert_user_device(user_id, device_id)
 
-                response["type"] = "success"
-                response["data"]["message"] = "User registered successfully"
-                response["data"]["user_id"] = user_id
-                response["data"]["first_name"] = first_name
-                response["data"]["last_name"] = last_name
-                response["data"]["email_address"] = email_address
-                response["data"]["email_id"] = email_address_id
-                response["data"]["phone_number"] = phone_number
-                response["data"]["phone_id"] = phone_number_id
-                response["data"]["device_name"] = device_name
-                response["data"]["device_sn"] = device_sn
-                response["data"]["device_id"] = device_id
-                response["data"]["birth_date"] = birth_date
+                if device_sn is not None and device_name is not None:
+                    device_id = self.__get_device_id(device_sn)[0]
+                    self.__insert_user_device(user_id, device_id)
+                    payload["device_id"] = device_id
+                else:
+                    payload["device_id"] = None
 
-        return response
+                payload["message"] = "User registered successfully"
+                payload["user_id"] = user_id
+                payload["first_name"] = first_name
+                payload["last_name"] = last_name
+                payload["email_address"] = email_address
+                payload["email_id"] = email_address_id
+                payload["phone_number"] = phone_number
+                payload["phone_id"] = phone_number_id
+                payload["device_name"] = device_name
+                payload["device_sn"] = device_sn
+                payload["birth_date"] = birth_date
+
+        return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
 
     # Login user
     # TODO: Add phone login option
@@ -371,9 +486,9 @@ class Database(metaclass=DatabaseMeta):
             email_auth = True
         # Check if credential is phone number
         elif ((len(credential) == 8 and (credential[0] == "6" or credential[0] == "7")) or (
-               len(credential) == 9 and (credential[0:2] == "06" or credential[0:2] == "07")) or (
-               len(credential) == 12 and (credential[0:5] == "+3736" or credential[0:5] == "+3737"))) and (
-               credential[-7:].isdigit()):
+                len(credential) == 9 and (credential[0:2] == "06" or credential[0:2] == "07")) or (
+                      len(credential) == 12 and (credential[0:5] == "+3736" or credential[0:5] == "+3737"))) and (
+                credential[-7:].isdigit()):
             phone_auth = True
         # Send error if credential is not email or phone number
         else:
@@ -503,4 +618,3 @@ class Database(metaclass=DatabaseMeta):
             response["data"]["birth_date"] = user[4].strftime("%Y-%m-%d")
 
             return response
-

@@ -19,7 +19,7 @@ class AppUser(db.Model):
     password_hash = db.Column(db.String(), nullable=False)
     active = db.Column(db.Boolean, nullable=False)
     confirmed = db.Column(db.Boolean, nullable=False, default=False)
-    birth_date = db.Column(db.Date, nullable=False)
+    birth_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False)
 
 
