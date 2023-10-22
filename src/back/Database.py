@@ -731,3 +731,9 @@ class Database(metaclass=DatabaseMeta):
                 payload["message"] = "Password changed successfully"
 
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+# TODO: Add method for user update (update_user)
+# TODO: Add subscription methods (buy subscription) check routes.py
+# TODO: Create simu/ sime tables
+# TODO: create methods for simu/ sime tables (check_student, check_elev, check_familie_monoparentala, check_familie_cu_multi_copii, check_personal_didactic, check_personal_medical)
+                         # vezi sa adaugi verificarea ca in fiecare an sa mai faca o data check_user.
