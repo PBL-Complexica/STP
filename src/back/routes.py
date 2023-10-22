@@ -14,7 +14,7 @@ def hello_world():
 
 
 # Endpoint for user signup
-@app.route('/signup', methods=['POST', 'GET'])
+@app.route('/signup', methods=['POST'])
 def signup():
     if request.method == 'POST':
         data = request.get_json()
@@ -75,28 +75,54 @@ def protected():
     return jsonify(logged_in_as=current_user), 200
 
 
-@app.route('/user_information', methods=['GET, PUT'])
+@app.route('/update_user_information', methods=['PUT'])
 @jwt_required()
-def user_information():
-    if request.method == 'GET':
-        user_id = get_jwt_identity()
+def update_user_information():
+    if request.method == 'PUT':
+        current_user = get_jwt_identity()
+        data = request.get_json()
+
+        first_name = data['first_name']
+        last_name = data['last_name']
+        phone_number = data['phone_number']
+        email_address = data['email_address']
         
-        return jsonify({'message': 'User information', 'user_id': user_id}), 200
-    elif request.method == 'PUT':
-        # TODO: [Update new data in database]
+        # TODO: [Update new user data in database]
         pass
 
+@app.route('/update_password', methods=['PUT'])
+@jwt_required()
+def update_password():
+    if request.method == 'PUT':
+        current_user = get_jwt_identity()
+        data = request.get_json()
 
-@app.route('/subscription_manager', methods=['GET', 'POST'])
+        user_id = data['user_id']
+        old_password = data['old_password']
+        new_password = data['new_password']
+
+        change_password_response = db.change_password(user_id=user_id, old_password=old_password, new_password=new_password)
+
+        if change_password_response['type'] == 'success':
+            return jsonify(change_password_response), 200
+        else:
+            return jsonify(change_password_response), 401
+
+
+@app.route('/buy_subscription', methods=['POST'])
 @jwt_required()
 def subscription_manager():
-    if request.method == 'GET':
-        current_user = get_jwt_identity()
-        return jsonify({'message': 'Subscription manager', 'user_id': current_user}), 200
-    elif request.method == 'POST':
-        # TODO: [Update new data in database]
-        # verify user if student or not
-        pass
+    if request.method == 'POST':
+        user_id = get_jwt_identity()
+
+        data = request.get_json()
+        subscription_type = data['subscription_type']
+        payment_method = data['payment_method']
+        payment_amount = data['payment_amount']
+
+        # Todo: [Buy subscription] // Corneliu
+        # buy_subscription_response = db.buy_subscription(user_id=user_id, subscription_type=subscription_type)
+
 
 
 @app.route('/device_manager', methods=['GET', 'POST'])
