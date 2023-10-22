@@ -47,17 +47,17 @@ def login():
 
     response = db.login(credential=phone_number, password=password)
 
-    access_token = create_access_token(identity=phone_number)
-    refresh_token = create_refresh_token(identity=phone_number)
-
     if response['type'] == 'success':
+        user_id = response["data"]["user_id"]
+        access_token = create_access_token(identity=user_id)
+        refresh_token = create_refresh_token(identity=user_id)
         return jsonify(access_token=access_token, refresh_token=refresh_token, response=response), 200
     return jsonify(response), 401
 
 
 # We are using the `refresh=True` options in jwt_required to only allow
 # refresh tokens to access this route.
-@app.route("/refresh", methods=["POST"])
+@app.route("/refresh", methods=["GET"])
 @jwt_required(refresh=True)
 def refresh():
     identity = get_jwt_identity()
@@ -75,13 +75,14 @@ def protected():
     return jsonify(logged_in_as=current_user), 200
 
 
-@app.route('/user_information', methods=['GET, POST'])
+@app.route('/user_information', methods=['GET, PUT'])
 @jwt_required()
 def user_information():
     if request.method == 'GET':
-        current_user = get_jwt_identity()
-        return jsonify({'message': 'User information', 'user_id': current_user}), 200
-    elif request.method == 'POST':
+        user_id = get_jwt_identity()
+        
+        return jsonify({'message': 'User information', 'user_id': user_id}), 200
+    elif request.method == 'PUT':
         # TODO: [Update new data in database]
         pass
 
