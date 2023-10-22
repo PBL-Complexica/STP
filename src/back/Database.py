@@ -405,9 +405,7 @@ class Database(metaclass=DatabaseMeta):
         if not ((len(phone_number) == 8 and (phone_number[0] == "6" or phone_number[0] == "7")) or (
                 len(phone_number) == 9 and (phone_number[0:2] == "06" or phone_number[0:2] == "07")) or (
                         len(phone_number) == 12 and (phone_number[0:5] == "+3736" or phone_number[0:5] == "+3737"))):
-            response["type"] = "error"
-            response["data"]["phone_error"] = 2
-            response["data"]["phone_message"] = "Invalid phone number"
+            phone_error = 2
         else:
             self.__insert_phone(phone_number)
 
@@ -476,7 +474,11 @@ class Database(metaclass=DatabaseMeta):
     # Login user
     # TODO: Add phone login option
     def login(self, credential: str, password: str) -> dict:
-        response = {"type": "", "data": {}}
+        email_error = 0
+        phone_error = 0
+        password_error = 0
+        device_error = 0
+        payload = {}
         password_hash = None
         email_auth = False
         phone_auth = False
@@ -492,11 +494,8 @@ class Database(metaclass=DatabaseMeta):
             phone_auth = True
         # Send error if credential is not email or phone number
         else:
-            response["type"] = "error"
-            response["data"]["email_error"] = 2
-            response["data"]["email_message"] = "Invalid email address"
-            response["data"]["phone_error"] = 2
-            response["data"]["phone_message"] = "Invalid phone number"
+            email_error = 2
+            phone_error = 2
 
         # If credential is email, check if email is registered
         if email_auth:
@@ -504,10 +503,8 @@ class Database(metaclass=DatabaseMeta):
 
             # If email is not registered, send error
             if not email_address_id:
-                response["type"] = "error"
-                response["data"]["email_error"] = 1
-                response["data"]["email_message"] = "Email not registered"
-                return response
+                email_error = 1
+                return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
             # If email is registered, get password hash
             else:
                 email_address_id = email_address_id[0]
@@ -523,11 +520,9 @@ class Database(metaclass=DatabaseMeta):
             phone_number_id = self.__get_phone_id(credential)
             # If phone number is not registered, send error
             if not phone_number_id:
-                response["type"] = "error"
-                response["data"]["phone_error"] = 1
-                response["data"]["phone_message"] = "Phone number not registered"
+                phone_error = 1
 
-                return response
+                return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
             # If phone number is registered, get password hash
             else:
                 phone_number_id = phone_number_id[0]
@@ -541,24 +536,19 @@ class Database(metaclass=DatabaseMeta):
 
         # If password hash is empty, send error for non-existent user
         if not password_hash:
-            response["type"] = "error"
             # If credential is email, send email error
             if email_auth:
-                response["data"]["email_error"] = 1
-                response["data"]["email_message"] = "Email not registered"
+                email_error = 1
             # If credential is phone number, send phone number error
             elif phone_auth:
-                response["data"]["phone_error"] = 1
-                response["data"]["phone_message"] = "Phone number not registered"
+                phone_error = 1
 
-            return response
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
 
         # If password is incorrect, send error
         if not checkpw(password.encode('utf-8'), password_hash[0].encode('utf-8')):
-            response["type"] = "error"
-            response["data"]["password_error"] = 2
-            response["data"]["password_message"] = "Incorrect password"
-            return response
+            password_error = 2
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
         # If password is correct, get user data
         else:
             # Get user data based on email
@@ -603,18 +593,141 @@ class Database(metaclass=DatabaseMeta):
             )
             device_name, device_sn, device_id = self.cursor.fetchone()
 
-            response["type"] = "success"
-            response["data"]["message"] = "User logged in successfully"
-            response["data"]["user_id"] = user[0]
-            response["data"]["first_name"] = user[1]
-            response["data"]["last_name"] = user[2]
-            response["data"]["email_address"] = email_address
-            response["data"]["email_id"] = email_address_id
-            response["data"]["phone_number"] = phone_number
-            response["data"]["phone_id"] = phone_number_id
-            response["data"]["device_name"] = device_name
-            response["data"]["device_sn"] = device_sn
-            response["data"]["device_id"] = device_id
-            response["data"]["birth_date"] = user[4].strftime("%Y-%m-%d")
+            payload["user_id"] = user[0]
+            payload["message"] = "User logged in successfully"
+            payload["first_name"] = user[1]
+            payload["last_name"] = user[2]
+            payload["email_address"] = email_address
+            payload["email_id"] = email_address_id
+            payload["phone_number"] = phone_number
+            payload["phone_id"] = phone_number_id
+            payload["device_name"] = device_name
+            payload["device_sn"] = device_sn
+            payload["device_id"] = device_id
+            payload["birth_date"] = user[4].strftime("%Y-%m-%d")
 
-            return response
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+    def get_user_by_id(self, user_id) -> dict:
+        email_error = 0
+        phone_error = 0
+        password_error = 0
+        device_error = 0
+        payload = {}
+
+        # Get user data based on id
+        self.cursor.execute(
+            "SELECT * FROM app_user "
+            "WHERE id = %s",
+            (user_id,)
+        )
+        user = self.cursor.fetchone()
+
+        if not user:
+            email_error = 2
+            phone_error = 2
+            password_error = 2
+            device_error = 2
+            payload["message"] = "User not found"
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+        # Get user's email address based on user's id
+        self.cursor.execute(
+            "SELECT email_address, id FROM email_address "
+            "WHERE id = (SELECT email_id FROM user_email WHERE user_id = %s)",
+            (user[0],)
+        )
+        email_address, email_address_id = self.cursor.fetchone()
+
+        # Get user's phone number based on user's id
+        self.cursor.execute(
+            "SELECT phone_number, id FROM phone_number "
+            "WHERE id = (SELECT phone_id FROM user_phone WHERE user_id = %s)",
+            (user[0],)
+        )
+        phone_number, phone_number_id = self.cursor.fetchone()
+
+        # Get user's device data based on user's id
+        self.cursor.execute(
+            "SELECT device_name, device_sn, id FROM device "
+            "WHERE id = (SELECT device_id FROM user_device WHERE user_id = %s)",
+            (user[0],)
+        )
+        device_name, device_sn, device_id = self.cursor.fetchone()
+
+        payload["user_id"] = user[0]
+        payload["message"] = "User logged in successfully"
+        payload["first_name"] = user[1]
+        payload["last_name"] = user[2]
+        payload["email_address"] = email_address
+        payload["email_id"] = email_address_id
+        payload["phone_number"] = phone_number
+        payload["phone_id"] = phone_number_id
+        payload["device_name"] = device_name
+        payload["device_sn"] = device_sn
+        payload["device_id"] = device_id
+        payload["birth_date"] = user[4].strftime("%Y-%m-%d")
+
+        return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+    def check_password(self, user_id, password: str) -> dict:
+        email_error = 0
+        phone_error = 0
+        password_error = 0
+        device_error = 0
+        payload = {}
+
+        # Get current password hash based on id
+        self.cursor.execute(
+            "SELECT password_hash FROM app_user "
+            "WHERE id = %s",
+            (user_id,)
+        )
+        password_hash = self.cursor.fetchone()
+
+        if not password_hash:
+            email_error = 2
+            phone_error = 2
+            password_error = 2
+            device_error = 2
+            payload["message"] = "User not found"
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+        # If password is incorrect, send error
+        if not checkpw(password.encode('utf-8'), password_hash[0].encode('utf-8')):
+            password_error = 2
+            payload["message"] = "Password incorrect"
+            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+        payload["message"] = "Password correct"
+        return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+    def change_password(self, user_id, old_password: str, new_password: str) -> dict:
+        email_error = 0
+        phone_error = 0
+        password_error = 0
+        device_error = 0
+        payload = {}
+
+        response_check = self.check_password(user_id, old_password)
+        if response_check["type"] == "error":
+            return response_check
+
+        # Check password is valid format
+        if len(new_password) < 8:
+            password_error = 2
+            payload["message"] = "New password is too short"
+        else:
+            hashed = hashpw(new_password.encode('utf-8'), gensalt()).decode('utf-8')
+
+            if password_error == 0:
+                self.cursor.execute(
+                    "UPDATE app_user SET password_hash = %s "
+                    "WHERE id = %s",
+                    (hashed, id)
+                )
+                self.db.commit()
+
+                payload["message"] = "Password changed successfully"
+
+        return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
