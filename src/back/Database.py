@@ -7,36 +7,12 @@ from bcrypt import gensalt, hashpw, checkpw
 import re
 
 
-class DatabaseMeta(type):
-    _instances = {}
+class DatabasePrivate:
+    def __init__(self, db):
+        self.db = db
+        self.cursor = db.cursor()
 
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(DatabaseMeta, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Database(metaclass=DatabaseMeta):
-    def __init__(self):
-        with app.app_context():
-            upgrade()
-
-        # Load environment variables
-        config = dotenv_values(".env")
-        self.db = psycopg2.connect(
-            host=config["DB_HOST"],
-            database=config["DB_DATABASE"],
-            user=config["DB_USER"],
-            password=config["DB_PASSWORD"]
-        )
-        self.cursor = self.db.cursor()
-
-        # TODO: Remove unconfirmed users
-        # self.remove_unconfirmed()
-
-        # Populate database with initial data
-        self.__populate()
-
+    # Private methods
     @staticmethod
     def __handle_response(
             email_error=0,
@@ -88,7 +64,6 @@ class Database(metaclass=DatabaseMeta):
 
         return response
 
-    # Private methods
     # Insert new user
     def __insert_user(self, first_name, last_name, password_hash, birth_date=None):
         self.cursor.execute(
@@ -265,6 +240,39 @@ class Database(metaclass=DatabaseMeta):
         self.__add_user_categories("familie cu multi copii")
         self.__add_user_categories("personal didactic")
         self.__add_user_categories("personal medical")
+
+
+class DatabaseMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(DatabaseMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class Database(metaclass=DatabaseMeta, DatabasePrivate):
+    def __init__(self):
+        with app.app_context():
+            upgrade()
+
+        # Load environment variables
+        config = dotenv_values(".env")
+        self.db = psycopg2.connect(
+            host=config["DB_HOST"],
+            database=config["DB_DATABASE"],
+            user=config["DB_USER"],
+            password=config["DB_PASSWORD"]
+        )
+        self.cursor = self.db.cursor()
+
+        super().__init__(self.db)
+
+        # TODO: Remove unconfirmed users
+        # self.remove_unconfirmed()
+
+        # Populate database with initial data
+        self.__populate()
 
     # Public methods
     # Remove unconfirmed users
@@ -737,3 +745,4 @@ class Database(metaclass=DatabaseMeta):
 # TODO: Create simu/ sime tables
 # TODO: create methods for simu/ sime tables (check_student, check_elev, check_familie_monoparentala, check_familie_cu_multi_copii, check_personal_didactic, check_personal_medical)
                          # vezi sa adaugi verificarea ca in fiecare an sa mai faca o data check_user.
+
