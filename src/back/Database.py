@@ -207,8 +207,8 @@ class DatabasePrivate:
         )
         self.cursor.execute(
             "INSERT INTO subscription_type (subscription_type_name, months, cost, created_at) "
-            "VALUES (%s, %s, %s, %s) O"
-            "N CONFLICT DO NOTHING",
+            "VALUES (%s, %s, %s, %s)"
+            "ON CONFLICT DO NOTHING",
             (name + "-6", 6, prices[2], datetime.now())
         )
         self.db.commit()
@@ -480,7 +480,6 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
 
     # Login user
-    # TODO: Add phone login option
     def login(self, credential: str, password: str) -> dict:
         email_error = 0
         phone_error = 0
@@ -490,6 +489,9 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
         password_hash = None
         email_auth = False
         phone_auth = False
+
+        phone_number_id = None
+        email_address_id = None
 
         # Check if credential is email
         if re.match(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b", credential):
@@ -568,6 +570,9 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
                     (email_address_id,)
                 )
                 user = self.cursor.fetchone()
+
+                # Get user's email address based on user's id
+                return self.get_user_by_id(user[0])
             # Get user data based on phone number
             elif phone_auth:
                 self.cursor.execute(
@@ -577,44 +582,8 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
                 )
                 user = self.cursor.fetchone()
 
-            # Get user's email address based on user's id
-            self.cursor.execute(
-                "SELECT email_address, id FROM email_address "
-                "WHERE id = (SELECT email_id FROM user_email WHERE user_id = %s)",
-                (user[0],)
-            )
-            email_address, email_address_id = self.cursor.fetchone()
-
-            # Get user's phone number based on user's id
-            self.cursor.execute(
-                "SELECT phone_number, id FROM phone_number "
-                "WHERE id = (SELECT phone_id FROM user_phone WHERE user_id = %s)",
-                (user[0],)
-            )
-            phone_number, phone_number_id = self.cursor.fetchone()
-
-            # Get user's device data based on user's id
-            self.cursor.execute(
-                "SELECT device_name, device_sn, id FROM device "
-                "WHERE id = (SELECT device_id FROM user_device WHERE user_id = %s)",
-                (user[0],)
-            )
-            device_name, device_sn, device_id = self.cursor.fetchone()
-
-            payload["user_id"] = user[0]
-            payload["message"] = "User logged in successfully"
-            payload["first_name"] = user[1]
-            payload["last_name"] = user[2]
-            payload["email_address"] = email_address
-            payload["email_id"] = email_address_id
-            payload["phone_number"] = phone_number
-            payload["phone_id"] = phone_number_id
-            payload["device_name"] = device_name
-            payload["device_sn"] = device_sn
-            payload["device_id"] = device_id
-            payload["birth_date"] = user[4].strftime("%Y-%m-%d")
-
-            return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+                # Get user's email address based on user's id
+                return self.get_user_by_id(user[0])
 
     def get_user_by_id(self, user_id) -> dict:
         email_error = 0
@@ -739,6 +708,19 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
                 payload["message"] = "Password changed successfully"
 
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
+
+    # TODO
+    def update_user(self, user_id, first_name: str = None, last_name: str = None, birth_date: str = None):
+        ...
+
+    # TODO: Add verification
+    def buy_subscription(self, user_id, subscription_type: str):
+        self.cursor.execute(
+            "INSERT INTO user_subscription (user_id, subscription_id, created_at, removed_at)"
+            "VALUES (%s, (SELECT id FROM subscription_type WHERE subscription_type_name = %s), %s)",
+            (user_id, subscription_type, datetime.now())
+        )
+        self.db.commit()
 
 # TODO: Add method for user update (update_user)
 # TODO: Add subscription methods (buy subscription) check routes.py
