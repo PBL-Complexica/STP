@@ -22,7 +22,7 @@ from Database import Database
 
 app = Flask(__name__)
 
-db = Database()
+db = Database
 
 # Load environment variables
 load_dotenv()
