@@ -37,4 +37,6 @@ jwt = JWTManager(app)
 user = User()
 
 if __name__ == '__main__':
+    import routes
+    routes.init()
     app.run(debug=True)

@@ -4,8 +4,12 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask import jsonify, request
 
-import app
-from app import db
+# import app
+from __main__ import db, app
+
+
+def init():
+    pass
 
 
 @app.route('/', methods=["GET"])
