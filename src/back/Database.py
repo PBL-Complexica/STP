@@ -7,10 +7,35 @@ from bcrypt import gensalt, hashpw, checkpw
 import re
 
 
-class DatabasePrivate:
-    def __init__(self, db):
-        self.db = db
-        self.cursor = db.cursor()
+class DatabaseMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(DatabaseMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class Database(metaclass=DatabaseMeta):
+    def __init__(self):
+        with app.app_context():
+            upgrade()
+
+        # Load environment variables
+        config = dotenv_values(".env")
+        self.db = psycopg2.connect(
+            host=config["DB_HOST"],
+            database=config["DB_DATABASE"],
+            user=config["DB_USER"],
+            password=config["DB_PASSWORD"]
+        )
+        self.cursor = self.db.cursor()
+
+        # TODO: Remove unconfirmed users
+        # self.remove_unconfirmed()
+
+        # Populate database with initial data
+        self.__populate()
 
     # Private methods
     @staticmethod
@@ -21,7 +46,7 @@ class DatabasePrivate:
             device_error=0,
             payload: dict = None
     ) -> dict:
-        response = {"type": "", "data": {}}
+        response = {"type": "success", "data": {}}
         response["data"]["email_error"] = email_error
         response["data"]["phone_error"] = phone_error
         response["data"]["password_error"] = password_error
@@ -191,6 +216,35 @@ class DatabasePrivate:
         )
         self.db.commit()
 
+    def __update_first_name(self, user_id, first_name):
+        self.cursor.execute(
+            "UPDATE app_user SET first_name = %s "
+            "WHERE id = %s",
+            (first_name, user_id)
+        )
+        # self.db.commit()
+
+    def __update_last_name(self, user_id, last_name):
+        self.cursor.execute(
+            "UPDATE app_user SET last_name = %s "
+            "WHERE id = %s",
+            (last_name, user_id)
+        )
+
+    def __update_email(self, user_id, email_address):
+        self.cursor.execute(
+            "UPDATE user_email SET email_id = (SELECT id FROM email_address WHERE email_address = %s) "
+            "WHERE user_id = %s",
+            (email_address, user_id)
+        )
+
+    def __update_phone(self, user_id, phone_number):
+        self.cursor.execute(
+            "UPDATE user_phone SET phone_id = (SELECT id FROM phone_number WHERE phone_number = %s) "
+            "WHERE user_id = %s",
+            (phone_number, user_id)
+        )
+
     # Add subscription types with months and prices
     def __add_categories(self, name: str, prices: list):
         self.cursor.execute(
@@ -240,39 +294,6 @@ class DatabasePrivate:
         self.__add_user_categories("familie cu multi copii")
         self.__add_user_categories("personal didactic")
         self.__add_user_categories("personal medical")
-
-
-class DatabaseMeta(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(DatabaseMeta, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Database(metaclass=DatabaseMeta, DatabasePrivate):
-    def __init__(self):
-        with app.app_context():
-            upgrade()
-
-        # Load environment variables
-        config = dotenv_values(".env")
-        self.db = psycopg2.connect(
-            host=config["DB_HOST"],
-            database=config["DB_DATABASE"],
-            user=config["DB_USER"],
-            password=config["DB_PASSWORD"]
-        )
-        self.cursor = self.db.cursor()
-
-        super().__init__(self.db)
-
-        # TODO: Remove unconfirmed users
-        # self.remove_unconfirmed()
-
-        # Populate database with initial data
-        self.__populate()
 
     # Public methods
     # Remove unconfirmed users
@@ -710,8 +731,33 @@ class Database(metaclass=DatabaseMeta, DatabasePrivate):
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
 
     # TODO
-    def update_user(self, user_id, first_name: str = None, last_name: str = None, birth_date: str = None):
-        ...
+    def update_user(
+            self,
+            user_id,
+            first_name: str = None,
+            last_name: str = None,
+            email_address: str = None,
+            phone_number: str = None,
+    ):
+        email_error = 0
+        phone_error = 0
+
+        if (len(phone_number) == 8 or len(phone_number) == 9) and phone_number.isdigit():
+            phone_number = "+373" + phone_number[-8:]
+
+        if first_name is not None:
+            self.__update_first_name(user_id, first_name)
+
+        if last_name is not None:
+            self.__update_last_name(user_id, last_name)
+
+        if email_address is not None:
+            self.__update_email(user_id, email_address)
+
+        if phone_number is not None:
+            self.__update_phone(user_id, phone_number)
+
+        self.db.commit()
 
     # TODO: Add verification
     def buy_subscription(self, user_id, subscription_type: str):

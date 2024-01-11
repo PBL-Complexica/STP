@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required
 from flask import jsonify, request
 
 # import app
-from __main__ import db, app
+from __main__ import db, app, jwt
 
 
 def init():
@@ -76,7 +76,7 @@ def refresh():
 def protected():
     # Access the identity of the current user with get_jwt_identity
     current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
+    return db.get_user_by_id(current_user), 200
 
 
 @app.route('/update_user_information', methods=['PUT'])
