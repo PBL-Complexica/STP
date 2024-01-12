@@ -14,7 +14,7 @@ def init():
 
 @app.route('/', methods=["GET"])
 def hello_world():
-    return "Welcome to STP!", 200
+    return jsonify(hello="World"), 200
 
 
 # Endpoint for user signup
