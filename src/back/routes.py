@@ -29,11 +29,10 @@ def signup():
         password = data['password']
         email_address = data['email_address']
         device_name = data['device_name']
-        device_sn = data['device_sn']
         birth_date = data['birth_date']
 
         response = db.register(phone_number=phone_number, password=password, email_address=email_address,
-                               first_name=first_name, last_name=last_name, device_name=device_name, device_sn=device_sn,
+                               first_name=first_name, last_name=last_name, device_name=device_name,
                                birth_date=birth_date)
 
         return jsonify(response), 201

@@ -59,7 +59,7 @@ class UserPhone(db.Model):
 class Device(db.Model):
     __tablename__ = 'device'
     id = db.Column(db.Integer, primary_key=True)
-    device_name = db.Column(db.String(50), nullable=False)
+    device_name = db.Column(db.String(50), nullable=False, unique=True)
     # device_sn = db.Column(db.String(), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, nullable=False)
 

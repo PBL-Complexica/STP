@@ -642,7 +642,7 @@ class Database(metaclass=DatabaseMeta):
         payload["phone_id"] = phone_number_id
         payload["device_name"] = device_name
         payload["device_id"] = device_id
-        payload["birth_date"] = user[4].strftime("%Y-%m-%d")
+        payload["birth_date"] = user[4].strftime("%Y-%m-%d") if user[4] is not None else None
 
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
 
