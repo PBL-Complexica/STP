@@ -81,7 +81,7 @@ class Database(metaclass=DatabaseMeta):
         elif device_error == 1:
             response["data"]["device_message"] = "Device in use"
         elif device_error == 2:
-            response["data"]["device_message"] = "Invalid device serial number"
+            response["data"]["device_message"] = "Invalid device name"
 
         if payload is not None:
             for key in payload.keys():
@@ -134,10 +134,10 @@ class Database(metaclass=DatabaseMeta):
         return self.cursor.fetchone()
 
     # Get device id
-    def __get_device_id(self, serial_number):
+    def __get_device_id(self, device_name):
         self.cursor.execute(
-            "SELECT id FROM device WHERE device_sn = %s",
-            (serial_number,)
+            "SELECT id FROM device WHERE device_name = %s",
+            (device_name,)
         )
         return self.cursor.fetchone()
 
@@ -154,11 +154,11 @@ class Database(metaclass=DatabaseMeta):
         self.db.commit()
 
     # Insert new device
-    def __insert_device(self, serial_number, device_name):
+    def __insert_device(self, device_name):
         self.cursor.execute(
-            "INSERT INTO device (device_name, device_sn, created_at) "
-            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (device_name, serial_number, datetime.now())
+            "INSERT INTO device (device_name, created_at) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (device_name, datetime.now())
         )
         self.db.commit()
 
@@ -177,15 +177,6 @@ class Database(metaclass=DatabaseMeta):
             "SELECT user_id FROM user_phone "
             "WHERE phone_id = %s AND removed_at > %s",
             (self.__get_phone_id(phone_number), datetime.now())
-        )
-        return self.cursor.fetchall()
-
-    # Return devices associated with a user device
-    def __get_user_id_device(self, serial_number):
-        self.cursor.execute(
-            "SELECT user_id FROM user_device "
-            "WHERE device_id = %s AND removed_at > %s",
-            (self.__get_device_id(serial_number), datetime.now())
         )
         return self.cursor.fetchall()
 
@@ -408,7 +399,6 @@ class Database(metaclass=DatabaseMeta):
             email_address: str,
             phone_number: str,
             device_name: str = None,
-            device_sn: str = None,
             birth_date: str = None
     ) -> dict:
         email_error = 0
@@ -443,17 +433,7 @@ class Database(metaclass=DatabaseMeta):
             else:
                 phone_error = 0
 
-        # Insert device name and serial number
-        device_ids = self.__get_user_id_device(device_sn)
-        if len(device_sn) != 11 and device_sn is not None and device_name is not None:
-            device_error = 2
-        else:
-            self.__insert_device(device_sn, device_name)
-
-            if device_ids:
-                device_error = 1
-            else:
-                device_error = 0
+        self.__insert_device(device_name)
 
         # Check first name is valid format
         if first_name == "" or not first_name.isalpha:
@@ -479,8 +459,8 @@ class Database(metaclass=DatabaseMeta):
                 self.__insert_user_email(user_id, email_address_id)
                 self.__insert_user_phone(user_id, phone_number_id)
 
-                if device_sn is not None and device_name is not None:
-                    device_id = self.__get_device_id(device_sn)[0]
+                if device_name is not None:
+                    device_id = self.__get_device_id(device_name)[0]
                     self.__insert_user_device(user_id, device_id)
                     payload["device_id"] = device_id
                 else:
@@ -495,7 +475,6 @@ class Database(metaclass=DatabaseMeta):
                 payload["phone_number"] = phone_number
                 payload["phone_id"] = phone_number_id
                 payload["device_name"] = device_name
-                payload["device_sn"] = device_sn
                 payload["birth_date"] = birth_date
 
         return self.__handle_response(email_error, phone_error, password_error, device_error, payload)
@@ -647,11 +626,11 @@ class Database(metaclass=DatabaseMeta):
 
         # Get user's device data based on user's id
         self.cursor.execute(
-            "SELECT device_name, device_sn, id FROM device "
+            "SELECT device_name, id FROM device "
             "WHERE id = (SELECT device_id FROM user_device WHERE user_id = %s)",
             (user[0],)
         )
-        device_name, device_sn, device_id = self.cursor.fetchone()
+        device_name, device_id = self.cursor.fetchone()
 
         payload["user_id"] = user[0]
         payload["message"] = "User logged in successfully"
@@ -662,7 +641,6 @@ class Database(metaclass=DatabaseMeta):
         payload["phone_number"] = phone_number
         payload["phone_id"] = phone_number_id
         payload["device_name"] = device_name
-        payload["device_sn"] = device_sn
         payload["device_id"] = device_id
         payload["birth_date"] = user[4].strftime("%Y-%m-%d")
 
