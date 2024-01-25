@@ -1,5 +1,4 @@
 import datetime
-import random
 import secrets
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import create_refresh_token
@@ -11,7 +10,7 @@ from flask import jsonify, request
 from __main__ import db, app, jwt
 
 subscription_cache = {}
-MAX_OTP_VALIDITY = 5
+MAX_OTP_VALIDITY = 5    # In minutes
 
 def init():
     pass
@@ -122,15 +121,11 @@ def update_password():
 def subscription_manager():
     if request.method == 'POST':
         user_id = get_jwt_identity()
-
         data = request.get_json()
-        subscription_type = data['subscription_type']
-        payment_method = data['payment_method']
-        payment_amount = data['payment_amount']
 
-        # Todo: [Buy subscription] // Corneliu
-        # buy_subscription_response = db.buy_subscription(user_id=user_id, subscription_type=subscription_type)
+        db.buy_subscription(user_id=user_id, subscription_type=data['subscription_type'])
 
+        return jsonify(db.get_subscription_data(user_id=user_id)), 200
 
 
 @app.route('/device_manager', methods=['GET', 'POST'])
