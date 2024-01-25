@@ -740,11 +740,64 @@ class Database(metaclass=DatabaseMeta):
     # TODO: Add verification
     def buy_subscription(self, user_id, subscription_type: str):
         self.cursor.execute(
-            "INSERT INTO user_subscription (user_id, subscription_id, created_at, removed_at)"
-            "VALUES (%s, (SELECT id FROM subscription_type WHERE subscription_type_name = %s), %s)",
-            (user_id, subscription_type, datetime.now())
+            "INSERT INTO subscription (subscription_type_id, valid_from, created_at) "
+            "VALUES ((SELECT id FROM subscription_type WHERE subscription_type_name = %s), %s, %s) "
+            "RETURNING id",
+            (subscription_type, datetime.now(), datetime.now())
+        )
+        sub_id = self.cursor.fetchone()[0]
+
+        self.cursor.execute(
+            "INSERT INTO user_subscription (user_id, subscription_id, created_at)"
+            "VALUES (%s, %s, %s)",
+            (user_id, sub_id, datetime.now())
         )
         self.db.commit()
+    
+    def get_subscription_data(self, user_id):
+        self.cursor.execute(
+            "SELECT * "
+            "FROM user_subscription "
+            "WHERE user_id = %s "
+            "ORDER BY created_at DESC "
+            "LIMIT 1",
+            (user_id,)
+        )
+    
+        cursor_data = self.cursor.fetchone()
+
+        if not cursor_data:
+            return False
+
+        subscription_id = cursor_data[2]
+
+        self.cursor.execute(
+            "SELECT * FROM subscription "
+            "WHERE id = %s",
+            (subscription_id,)
+        )
+        subscription = self.cursor.fetchone()
+        subscription_type_id = subscription[1]
+        valid_from = subscription[2]
+    
+        self.cursor.execute(
+            "SELECT * FROM subscription_type "
+            "WHERE id = %s",
+            (subscription_type_id,)
+        )
+        subscription_type_data = self.cursor.fetchone()
+        subscription_type_name = subscription_type_data[1]
+        months = subscription_type_data[2]
+
+        return {
+            "user_id": user_id,
+            "subscription_id": subscription_id,
+            "subscription_type_name": subscription_type_name,
+            "valid_from": valid_from,
+            "months": months
+        }
+
+
 
 # TODO: Add method for user update (update_user)
 # TODO: Add subscription methods (buy subscription) check routes.py

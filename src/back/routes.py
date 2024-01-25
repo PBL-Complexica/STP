@@ -1,14 +1,17 @@
+import datetime
+import random
+import secrets
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import create_refresh_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask import jsonify, request
 
-from TempSubscription import TempSubscription
-
 # import app
 from __main__ import db, app, jwt
 
+subscription_cache = {}
+MAX_OTP_VALIDITY = 5
 
 def init():
     pass
@@ -160,23 +163,65 @@ def payment_manager():
         pass
 
 
-@app.route('/generate_subscription', methods=['GET'])
+@app.route('/get_user_subscription', methods=['GET'])
 @jwt_required()
-def generate_subscription():
+def get_user_subscription():
     current_user = get_jwt_identity()
 
-    # Get user's subscription data
-    # Check if user has an active subscription
-    # Generate subscription and add it to the cache with a random 32 bit key
-    # Return the key to the user
+    subscription = db.get_subscription_data(user_id=current_user)
+
+    if not subscription:
+        return jsonify({'message': 'No subscription found'}), 404
+
+    response = {
+        "name": subscription["subscription_type_name"],
+        "duration": (subscription["valid_from"] + datetime.timedelta(days=subscription["months"] * 30)).strftime("%d/%m/%Y"),
+        "valid_from": subscription["valid_from"],
+        "days_left": (subscription["valid_from"] + datetime.timedelta(days=subscription["months"] * 30) - datetime.datetime.now()).days
+    }
+
+    return jsonify(response), 200
+
+
+@app.route('/generate_subscription_otp', methods=['GET'])
+@jwt_required()
+def generate_subscription_otp():
+    print(subscription_cache)
+    current_user = get_jwt_identity()
+
+    subscription = db.get_subscription_data(user_id=current_user)
+    
+    if not subscription:
+        return jsonify({'message': 'No subscription found'}), 404
+    
+    random_key = str(secrets.token_urlsafe(8))
+    # Get current time
+    subscription["generation_time"] = str(datetime.datetime.now())
+    # subscription_cache[random_key] = subscription
+    subscription_cache[random_key] = {
+        'user_id': current_user, 
+        'generation_time': subscription["generation_time"]
+    }
+
+    return jsonify({'subscription_key': random_key}), 200
 
 
 @app.route('/validate_subscription', methods=['POST'])
 def validate_subscription():
     if request.method == 'POST':
         data = request.get_json()
+
+        subscription_key = data['subscription_key']
+
+        if subscription_key in subscription_cache:
+            subscription = subscription_cache[subscription_key]
+
+            if datetime.now() - subscription["generation_time"] < datetime.timedelta(minutes=MAX_OTP_VALIDITY):
+                del subscription_cache[subscription_key]
+                return jsonify(db.get_subscription_data(subscription["user_id"])), 200
+            else:
+                del subscription_cache[subscription_key]
+                return jsonify({'message': 'Subscription key expired'}), 404
     
-    # Get subscription key from user
-    # Check if subscription key exists in cache and check if generation_time isn't older than 5 minutes
-    # If it exists and valid, return the subscription data and remove the key from the cache
-    # If it doesn't exist, return an error message
+        else:
+            return jsonify({'message': 'Not found'}), 404
