@@ -4,6 +4,8 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask import jsonify, request
 
+from TempSubscription import TempSubscription
+
 # import app
 from __main__ import db, app, jwt
 
@@ -156,3 +158,25 @@ def payment_manager():
         return jsonify({'message': 'Payment manager', 'user_id': current_user}), 200
     elif request.method == 'POST':
         pass
+
+
+@app.route('/generate_subscription', methods=['GET'])
+@jwt_required()
+def generate_subscription():
+    current_user = get_jwt_identity()
+
+    # Get user's subscription data
+    # Check if user has an active subscription
+    # Generate subscription and add it to the cache with a random 32 bit key
+    # Return the key to the user
+
+
+@app.route('/validate_subscription', methods=['POST'])
+def validate_subscription():
+    if request.method == 'POST':
+        data = request.get_json()
+    
+    # Get subscription key from user
+    # Check if subscription key exists in cache and check if generation_time isn't older than 5 minutes
+    # If it exists and valid, return the subscription data and remove the key from the cache
+    # If it doesn't exist, return an error message
